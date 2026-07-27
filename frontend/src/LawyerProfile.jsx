@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   CalendarCheck,
   FileCheck2,
+  MapPin,
   Menu,
   MessageSquareText,
   Phone,
@@ -248,6 +249,10 @@ const LawyerProfile = () => {
             <CalendarCheck size={18} />
             <span>ஆலோசனைகள்</span>
           </a>
+          <Link to="/user-profile/lawyer-location" onClick={() => setMenuOpen(false)}>
+            <MapPin size={18} />
+            <span>வழக்கறிஞர் வரைபடம் (Leaflet Map)</span>
+          </Link>
           
           <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
             <Link className="secondaryBtn" to="/" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>வெளியேறு</Link>
@@ -292,6 +297,31 @@ const LawyerProfile = () => {
               <div className="cardGrid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
                 <div className="panel">
                   <h3>அடிப்படைத் தகவல்கள்</h3>
+                  <div className="avatarUploadGroup" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <img
+                      src={lawyer.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'}
+                      alt="Profile Photo"
+                      style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #10b981' }}
+                    />
+                    <label className="secondaryBtn compact" style={{ cursor: 'pointer', margin: 0 }}>
+                      📷 புகைப்படத்தைப் பதிவேற்று (Upload Photo)
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (uploadEvent) => {
+                              updateLawyer('avatar', uploadEvent.target.result);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <label>
                     வழக்கறிஞர் பெயர்
                     <input value={lawyer.name} onChange={(event) => updateLawyer('name', event.target.value)} />

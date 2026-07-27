@@ -5,7 +5,9 @@ import {
   AlertTriangle,
   BookOpen,
   Bot,
+  Calendar,
   ChevronRight,
+  Clock,
   FileText,
   FileCheck2,
   History,
@@ -17,13 +19,19 @@ import {
   Search,
   Settings,
   Shield,
+  Sparkles,
   User,
+  UserCheck,
   Volume2,
   X
 } from 'lucide-react';
 import LoginPage from './LoginPage';
 import LawyerProfile from './LawyerProfile';
 import PeopleLawyers from './PeopleLawyers';
+import InteractionHub from './InteractionHub';
+import RtiGenerator from './RtiGenerator';
+import DeadlineTracker from './DeadlineTracker';
+import LawyerLocationFinder from './LawyerLocationFinder';
 import { buildTamilLegalAnswer } from './tamilLegalAssistant';
 import { API } from './api';
 import './styles.css';
@@ -43,9 +51,13 @@ const getActiveUserId = () => {
 const navItems = [
   { path: USER_BASE, label: 'முகப்பு', icon: Home },
   { path: `${USER_BASE}/assistant`, label: 'குரல் உதவி', icon: Mic },
-  { path: `${USER_BASE}/fir`, label: 'முதல் தகவல் அறிக்கை வழிகாட்டி', icon: FileText },
+  { path: `${USER_BASE}/interaction`, label: 'சந்திப்புகள் & ஆவணங்கள்', icon: Calendar },
+  { path: `${USER_BASE}/lawyer-location`, label: 'வழக்கறிஞர் அமைவிடம் (Leaflet)', icon: MapPin },
+  { path: `${USER_BASE}/lawyers`, label: 'வழக்கறிஞர்கள் பட்டியல்', icon: UserCheck },
+  { path: `${USER_BASE}/rti-generator`, label: 'RTI விண்ணப்ப இயற்றி', icon: FileText },
+  { path: `${USER_BASE}/deadline-tracker`, label: 'சட்ட காலக்கெடு', icon: Clock },
+  { path: `${USER_BASE}/fir`, label: 'முதல் தகவல் அறிக்கை வழிகாட்டி', icon: Shield },
   { path: `${USER_BASE}/knowledge`, label: 'சட்ட நூலகம்', icon: BookOpen },
-  { path: `${USER_BASE}/lawyers`, label: 'வழக்கறிஞர்கள்', icon: MapPin },
   { path: `${USER_BASE}/my-requests`, label: 'கோரிக்கை நிலை', icon: FileCheck2 },
   { path: `${USER_BASE}/emergency`, label: 'அவசர உதவி', icon: AlertTriangle },
   { path: `${USER_BASE}/history`, label: 'வரலாறு', icon: History },
@@ -243,9 +255,13 @@ function UserApp() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/assistant" element={<Assistant />} />
+          <Route path="/interaction" element={<InteractionHub />} />
+          <Route path="/rti-generator" element={<RtiGenerator />} />
+          <Route path="/deadline-tracker" element={<DeadlineTracker />} />
           <Route path="/fir" element={<FirPage />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/lawyers" element={<PeopleLawyers />} />
+          <Route path="/lawyer-location" element={<LawyerLocationFinder />} />
           <Route path="/my-requests" element={<MyRequests />} />
           <Route path="/emergency" element={<Emergency />} />
           <Route path="/history" element={<HistoryPage />} />
@@ -273,6 +289,7 @@ function Dashboard() {
           <p>முதல் தகவல் அறிக்கை வழிகாட்டல், காவல் உரிமைகள், நுகர்வோர் சிக்கல்கள், வாடகை தகராறுகள், அவசர ஆதரவு, சட்ட வரலாறு, வழக்கறிஞர் தொடர்பு அனைத்தும் ஒரே நட்பு செயலியில்.</p>
           <div className="heroActions">
             <Link to={`${USER_BASE}/assistant`} className="primaryBtn"><Mic size={18} /> கேள்வி கேள்</Link>
+            <Link to={`${USER_BASE}/lawyer-location`} className="secondaryBtn"><MapPin size={18} /> வழக்கறிஞர் அமைவிடம் (Leaflet Map)</Link>
             <Link to={`${USER_BASE}/fir`} className="secondaryBtn"><FileText size={18} /> முதல் தகவல் அறிக்கை வழிகாட்டி</Link>
           </div>
         </div>

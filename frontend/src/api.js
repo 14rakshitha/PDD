@@ -66,3 +66,130 @@ export async function updateLawyerProfile(payload) {
   }
   return data;
 }
+
+export async function bookConsultation(payload) {
+  const res = await fetch(`${API}/consultations/book`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return parseJson(res);
+}
+
+export async function fetchClientConsultations(name, phone) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phone) params.append('phone', phone);
+  const res = await fetch(`${API}/consultations/client?${params}`);
+  return parseJson(res);
+}
+
+export async function fetchLawyerConsultations(lawyerId, lawyerName) {
+  const params = new URLSearchParams();
+  if (lawyerId) params.append('lawyerId', lawyerId);
+  if (lawyerName) params.append('lawyerName', lawyerName);
+  const res = await fetch(`${API}/consultations/lawyer?${params}`);
+  return parseJson(res);
+}
+
+export async function updateConsultationStatus(id, status) {
+  const res = await fetch(`${API}/consultations/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  return parseJson(res);
+}
+
+export async function uploadVaultDocument(payload) {
+  const res = await fetch(`${API}/documents/upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return parseJson(res);
+}
+
+export async function fetchMyVault(name, phone) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phone) params.append('phone', phone);
+  const res = await fetch(`${API}/documents/my-vault?${params}`);
+  return parseJson(res);
+}
+
+export async function fetchSharedDocuments(lawyerId, lawyerName) {
+  const params = new URLSearchParams();
+  if (lawyerId) params.append('lawyerId', lawyerId);
+  if (lawyerName) params.append('lawyerName', lawyerName);
+  const res = await fetch(`${API}/documents/shared-with-me?${params}`);
+  return parseJson(res);
+}
+
+export async function shareVaultDocument(id, lawyerId, lawyerName, consultationId) {
+  const res = await fetch(`${API}/documents/${id}/share`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lawyerId, lawyerName, consultationId })
+  });
+  return parseJson(res);
+}
+
+export async function sendChatMessage(payload) {
+  const res = await fetch(`${API}/chat/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return parseJson(res);
+}
+
+export async function fetchChatHistory(consultationId) {
+  const res = await fetch(`${API}/chat/${consultationId}`);
+  return parseJson(res);
+}
+
+export async function generateRtiDraft(payload) {
+  const res = await fetch(`${API}/rti/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return parseJson(res);
+}
+
+export async function fetchMyRtiDrafts(name, phone) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phone) params.append('phone', phone);
+  const res = await fetch(`${API}/rti/my-drafts?${params}`);
+  return parseJson(res);
+}
+
+export async function createLegalDeadline(payload) {
+  const res = await fetch(`${API}/deadlines/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return parseJson(res);
+}
+
+export async function fetchMyDeadlines(name, phone) {
+  const params = new URLSearchParams();
+  if (name) params.append('name', name);
+  if (phone) params.append('phone', phone);
+  const res = await fetch(`${API}/deadlines/my-deadlines?${params}`);
+  return parseJson(res);
+}
+
+export async function updateDeadlineStatus(id, status) {
+  const res = await fetch(`${API}/deadlines/${id}/status`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  return parseJson(res);
+}
+
+
