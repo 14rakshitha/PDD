@@ -147,7 +147,7 @@ title_cell.alignment = Alignment(horizontal="center", vertical="center")
 ws_summary["A4"] = "Application Name:"
 ws_summary["B4"] = "LawVoice Legal Platform"
 ws_summary["A5"] = "Target Environment:"
-ws_summary["B5"] = "Live Web App (http://localhost:5170)"
+ws_summary["B5"] = "Live Web App (http://localhost:5190)"
 ws_summary["A6"] = "Execution Date:"
 ws_summary["B6"] = now_str
 ws_summary["A7"] = "Testing Tool:"

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import com.lawvoice.model.UserAccount;
 import com.lawvoice.repository.UserAccountRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -67,7 +68,6 @@ public class LegalAssistantService {
     }
 
     public Map<String, Object> aiStatus() {
-        PdfKnowledgeService.PdfStatus pdfStatus = pdfKnowledgeService.status();
         Map<String, Object> status = new java.util.LinkedHashMap<>();
         status.put("provider", "Sarvam AI");
         status.put("configured", true);
@@ -76,10 +76,6 @@ public class LegalAssistantService {
         status.put("fallback", "Tamil local legal classifier");
         status.put("classifierVersion", "direct-v2");
         status.put("lastError", lastSarvamError == null ? "" : lastSarvamError);
-        status.put("pdfPath", pdfStatus.pdfPath());
-        status.put("pdfLoaded", pdfStatus.loaded());
-        status.put("pdfChunks", pdfStatus.chunks());
-        status.put("pdfError", pdfStatus.error());
         return status;
     }
 
@@ -88,12 +84,6 @@ public class LegalAssistantService {
             lastSarvamError = "SARVAM_API_KEY is missing in backend environment.";
             return new SarvamCall(null, lastSarvamError);
         }
-
-        List<String> pdfSnippets = pdfKnowledgeService.retrieve(request.query(), 4);
-        String pdfContext = pdfSnippets.isEmpty()
-                ? ""
-                : ("REFERENCE TEXT (use as primary source; answer only with info consistent with it):\n\n"
-                + String.join("\n\n---\n\n", pdfSnippets));
 
         String systemPrompt = """
                 You are a Tamil-speaking Indian legal case assistant for LawVoice.
@@ -117,11 +107,8 @@ public class LegalAssistantService {
                 }
                 """;
 
-        // Build user message — combine query + PDF context in one message (Sarvam rejects empty content)
+        // Build user message
         String userContent = "User legal question (Tamil answer only): " + request.query();
-        if (!pdfContext.isBlank()) {
-            userContent = userContent + "\n\n" + pdfContext;
-        }
 
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
@@ -433,7 +420,7 @@ public class LegalAssistantService {
                 List.of("புகார் அளிக்க உரிமை உள்ளது.", "பெறுபதிவு நகல் கேட்கலாம்."),
                 List.of("அவசரம் என்றால் 112 அழைக்கவும்.", "தேவைப்பட்டால் குற்றவியல் வழக்கறிஞரை அணுகுங்கள்."),
                 suggestLawyers("Criminal Law"),
-                List.of("PDF வழிகாட்டி: 20240716890312078.pdf"),
+                List.of(),
                 "இது பொதுவான வழிகாட்டல் மட்டுமே."
         );
     }
@@ -449,7 +436,7 @@ public class LegalAssistantService {
     public List<LawyerItem> lawyers() {
         List<LawyerItem> list = new ArrayList<>();
         if (userAccountRepository != null) {
-            for (com.lawvoice.model.UserAccount u : userAccountRepository.findAll()) {
+            for (UserAccount u : userAccountRepository.findAll()) {
                 if ("lawyer".equalsIgnoreCase(u.getRole())) {
                     Map<String, Object> profile = u.getLawyerProfile();
                     String category = profile != null ? String.valueOf(profile.getOrDefault("category", "General")) : "General";
@@ -548,10 +535,6 @@ public class LegalAssistantService {
         String category = normalizeCategory(Optional.ofNullable(base.category()).orElse("General"));
         List<LawyerItem> suggestions = suggestLawyers(category);
         List<String> sources = new ArrayList<>();
-        List<String> pdfSnippets = pdfKnowledgeService.retrieve(query, 2);
-        if (!pdfSnippets.isEmpty()) {
-            sources.add("PDF வழிகாட்டி: 20240716890312078.pdf");
-        }
         return new AskResponse(
                 base.topic(),
                 category,

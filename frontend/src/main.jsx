@@ -7,7 +7,6 @@ import {
   Bot,
   Calendar,
   ChevronRight,
-  Clock,
   FileText,
   FileCheck2,
   History,
@@ -30,7 +29,7 @@ import LawyerProfile from './LawyerProfile';
 import PeopleLawyers from './PeopleLawyers';
 import InteractionHub from './InteractionHub';
 import RtiGenerator from './RtiGenerator';
-import DeadlineTracker from './DeadlineTracker';
+
 import LawyerLocationFinder from './LawyerLocationFinder';
 import { buildTamilLegalAnswer } from './tamilLegalAssistant';
 import { API } from './api';
@@ -55,7 +54,7 @@ const navItems = [
   { path: `${USER_BASE}/lawyer-location`, label: 'வழக்கறிஞர் அமைவிடம் (Leaflet)', icon: MapPin },
   { path: `${USER_BASE}/lawyers`, label: 'வழக்கறிஞர்கள் பட்டியல்', icon: UserCheck },
   { path: `${USER_BASE}/rti-generator`, label: 'RTI விண்ணப்ப இயற்றி', icon: FileText },
-  { path: `${USER_BASE}/deadline-tracker`, label: 'சட்ட காலக்கெடு', icon: Clock },
+
   { path: `${USER_BASE}/fir`, label: 'முதல் தகவல் அறிக்கை வழிகாட்டி', icon: Shield },
   { path: `${USER_BASE}/knowledge`, label: 'சட்ட நூலகம்', icon: BookOpen },
   { path: `${USER_BASE}/my-requests`, label: 'கோரிக்கை நிலை', icon: FileCheck2 },
@@ -257,7 +256,7 @@ function UserApp() {
           <Route path="/assistant" element={<Assistant />} />
           <Route path="/interaction" element={<InteractionHub />} />
           <Route path="/rti-generator" element={<RtiGenerator />} />
-          <Route path="/deadline-tracker" element={<DeadlineTracker />} />
+
           <Route path="/fir" element={<FirPage />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/lawyers" element={<PeopleLawyers />} />

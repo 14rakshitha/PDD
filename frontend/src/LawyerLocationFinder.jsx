@@ -15,6 +15,7 @@ import {
   UserCheck,
   X
 } from 'lucide-react';
+import { API } from './api';
 import './styles.css';
 
 const districtsTN = [
@@ -31,7 +32,21 @@ const districtsTN = [
   { name: 'தூத்துக்குடி (Tuticorin)', lat: 8.7642, lng: 78.1348, zoom: 12 }
 ];
 
-const lawyerLocationsData = [
+const cityCoordsMap = {
+  'சென்னை': { lat: 13.0878, lng: 80.2835, district: 'சென்னை (Chennai)', court: 'மெட்ராஸ் உயர் நீதிமன்றம்' },
+  'Chennai': { lat: 13.0878, lng: 80.2835, district: 'சென்னை (Chennai)', court: 'மெட்ராஸ் உயர் நீதிமன்றம்' },
+  'பாரிஸ்': { lat: 13.0850, lng: 80.2860, district: 'சென்னை (Chennai)', court: 'பாரிமுனை வழக்கறிஞர் சங்கம்' },
+  'மதுரை': { lat: 9.9252, lng: 78.1198, district: 'மதுரை (Madurai)', court: 'மதுரை கிளை உயர் நீதிமன்றம்' },
+  'Madurai': { lat: 9.9252, lng: 78.1198, district: 'மதுரை (Madurai)', court: 'மதுரை கிளை உயர் நீதிமன்றம்' },
+  'கோயம்புத்தூர்': { lat: 11.0168, lng: 76.9558, district: 'கோயம்புத்தூர் (Coimbatore)', court: 'கோயம்புத்தூர் நீதிமன்றம்' },
+  'Coimbatore': { lat: 11.0168, lng: 76.9558, district: 'கோயம்புத்தூர் (Coimbatore)', court: 'கோயம்புத்தூர் நீதிமன்றம்' },
+  'திருச்சி': { lat: 10.7905, lng: 78.7047, district: 'திருச்சி (Trichy)', court: 'திருச்சி மாவட்ட நீதிமன்றம்' },
+  'Trichy': { lat: 10.7905, lng: 78.7047, district: 'திருச்சி (Trichy)', court: 'திருச்சி மாவட்ட நீதிமன்றம்' },
+  'சேலம்': { lat: 11.6643, lng: 78.1460, district: 'சேலம் (Salem)', court: 'சேலம் நீதிமன்றம்' },
+  'Salem': { lat: 11.6643, lng: 78.1460, district: 'சேலம் (Salem)', court: 'சேலம் நீதிமன்றம்' },
+};
+
+const lawyerLocationsDataInitial = [
   {
     id: 1,
     name: 'Adv. ப்ரியா ராமன்',
@@ -110,6 +125,7 @@ const lawyerLocationsData = [
 ];
 
 const LawyerLocationFinder = () => {
+  const [lawyersList, setLawyersList] = useState(lawyerLocationsDataInitial);
   const [selectedDistrict, setSelectedDistrict] = useState('அனைத்து மாவட்டங்கள் (All)');
   const [searchQuery, setSearchQuery] = useState('');
   const [locationStatus, setLocationStatus] = useState('');
@@ -118,6 +134,54 @@ const LawyerLocationFinder = () => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
+
+  // Fetch backend lawyers and merge dynamically
+  useEffect(() => {
+    const fetchLawyers = async () => {
+      try {
+        const res = await fetch(`${API}/lawyers`);
+        if (res.ok) {
+          const backendData = await res.json();
+          if (Array.isArray(backendData) && backendData.length > 0) {
+            const merged = [...lawyerLocationsDataInitial];
+            backendData.forEach((bl, index) => {
+              const exists = merged.some(
+                m => m.name.trim().toLowerCase().includes(bl.name.trim().toLowerCase()) ||
+                     (bl.phone && m.phone === bl.phone)
+              );
+              if (!exists) {
+                const cityKey = bl.city || bl.district || 'சென்னை';
+                const cityInfo = cityCoordsMap[cityKey] || cityCoordsMap['சென்னை'];
+                // Add slight offset so markers don't overlap exactly
+                const offsetLat = (Math.random() - 0.5) * 0.015;
+                const offsetLng = (Math.random() - 0.5) * 0.015;
+
+                merged.push({
+                  id: bl.id || `backend-${index}`,
+                  name: bl.name.startsWith('Adv.') ? bl.name : `Adv. ${bl.name}`,
+                  category: bl.category || 'பொது சட்டம் (General Law)',
+                  city: bl.city || 'சென்னை',
+                  district: cityInfo.district,
+                  address: bl.office || `${bl.city || 'சென்னை'} நீதிமன்ற வளாகம் அருகே`,
+                  lat: cityInfo.lat + offsetLat,
+                  lng: cityInfo.lng + offsetLng,
+                  phone: bl.phone || '+91 90000 10006',
+                  rating: bl.rating || '4.8',
+                  experience: bl.experience || '8 ஆண்டுகள்',
+                  avatar: bl.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+                  courtName: bl.courtPractice || cityInfo.court
+                });
+              }
+            });
+            setLawyersList(merged);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load backend lawyers in map:", e);
+      }
+    };
+    fetchLawyers();
+  }, []);
 
   // Calculate Distance in KM using Haversine Formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -159,21 +223,28 @@ const LawyerLocationFinder = () => {
 
         mapInstanceRef.current = map;
 
-        // Render Markers
+        // Render Markers with Tamil tooltips
         markersRef.current = [];
         const latLngList = [];
-        lawyerLocationsData.forEach((lawyer) => {
+        lawyersList.forEach((lawyer) => {
           latLngList.push([lawyer.lat, lawyer.lng]);
-          const marker = window.L.marker([lawyer.lat, lawyer.lng]).addTo(map);
+          const lawyerIcon = window.L.divIcon({
+            html: `<div style="background:#059669;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">⚖️</div>`,
+            className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+          });
+          const marker = window.L.marker([lawyer.lat, lawyer.lng], { icon: lawyerIcon }).addTo(map);
           const popupContent = `
-            <div style="font-family: sans-serif; padding: 4px;">
+            <div style="font-family: 'Noto Sans Tamil', sans-serif; padding: 6px;">
               <strong style="font-size: 14px; color: #1e293b;">${lawyer.name}</strong><br/>
               <span style="font-size: 12px; color: #059669; font-weight: 600;">${lawyer.category}</span><br/>
-              <small style="color: #64748b;">${lawyer.courtName}</small><br/>
-              <a href="tel:${lawyer.phone}" style="display: inline-block; margin-top: 6px; padding: 4px 8px; background: #059669; color: white; border-radius: 4px; text-decoration: none; font-size: 12px;">📞 ${lawyer.phone}</a>
+              <small style="color: #64748b;">🏛️ ${lawyer.courtName}</small><br/>
+              <small style="color: #64748b;">📍 ${lawyer.city}</small><br/>
+              <a href="tel:${lawyer.phone}" style="display: inline-block; margin-top: 6px; padding: 4px 10px; background: #059669; color: white; border-radius: 6px; text-decoration: none; font-size: 12px;">📞 அழைக்கவும் ${lawyer.phone}</a>
             </div>
           `;
           marker.bindPopup(popupContent);
+          // Tamil permanent tooltip showing lawyer name
+          marker.bindTooltip(lawyer.name, { permanent: true, direction: 'top', className: 'tamilTooltip' });
           marker.on('click', () => {
             setSelectedLawyerOnMap(lawyer);
           });
@@ -214,7 +285,7 @@ const LawyerLocationFinder = () => {
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [lawyersList]);
 
   // Update Map Center when District is selected
   const handleDistrictChange = (distObj) => {
@@ -237,7 +308,7 @@ const LawyerLocationFinder = () => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
 
         const newDistances = {};
-        lawyerLocationsData.forEach((lawyer) => {
+        lawyersList.forEach((lawyer) => {
           newDistances[lawyer.id] = calculateDistance(
             coords.lat,
             coords.lng,
@@ -261,7 +332,7 @@ const LawyerLocationFinder = () => {
     );
   };
 
-  const filteredLawyers = lawyerLocationsData.filter((lawyer) => {
+  const filteredLawyers = lawyersList.filter((lawyer) => {
     const matchesDistrict =
       selectedDistrict === 'அனைத்து மாவட்டங்கள் (All)' ||
       lawyer.district === selectedDistrict ||

@@ -1,30 +1,55 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Bell,
   BriefcaseBusiness,
   CalendarCheck,
+  Clock,
+  Eye,
   FileCheck2,
+  FileText,
   MapPin,
   Menu,
   MessageSquareText,
   Phone,
   Save,
   Search,
+  Share2,
   Star,
+  Upload,
   UsersRound,
   Plus,
   Trash2,
   X
 } from 'lucide-react';
 import { practiceAreas, readStoredLawyerProfile, readStoredRequests } from './demoData';
-import { updateLawyerProfile, API } from './api';
+import {
+  updateLawyerProfile,
+  API,
+  fetchLawyerConsultations,
+  updateConsultationStatus,
+  fetchSharedDocuments
+} from './api';
 import './styles.css';
 
-const schedule = [
-  ['10:00 AM', 'ரவி குமார்', 'FIR மறுப்பு ஆலோசனை'],
-  ['12:30 PM', 'அனன்யா', 'பாதுகாப்பு உத்தரவு வழிகாட்டல்'],
-  ['04:00 PM', 'ஆவண மதிப்பாய்வு', 'வாடகை முன்பணம் அறிவிப்பு']
-];
+/* ── city → approx lat/lng for Tamil Nadu client map markers ── */
+const tamilCityCoords = {
+  'சென்னை': { lat: 13.0827, lng: 80.2707 },
+  'மதுரை': { lat: 9.9252, lng: 78.1198 },
+  'கோயம்புத்தூர்': { lat: 11.0168, lng: 76.9558 },
+  'திருச்சி': { lat: 10.7905, lng: 78.7047 },
+  'சேலம்': { lat: 11.6643, lng: 78.146 },
+  'திருநெல்வேலி': { lat: 8.7139, lng: 77.7567 },
+  'ஈரோடு': { lat: 11.341, lng: 77.7172 },
+  'வேலூர்': { lat: 12.9165, lng: 79.1325 },
+  'தஞ்சாவூர்': { lat: 10.787, lng: 79.1378 },
+  'தூத்துக்குடி': { lat: 8.7642, lng: 78.1348 },
+  'Chennai': { lat: 13.0827, lng: 80.2707 },
+  'Madurai': { lat: 9.9252, lng: 78.1198 },
+  'Coimbatore': { lat: 11.0168, lng: 76.9558 },
+  'Paris': { lat: 13.0827, lng: 80.2707 },
+  'பாரிஸ்': { lat: 13.0827, lng: 80.2707 },
+};
 
 const LawyerProfile = () => {
   const [lawyer, setLawyer] = useState(readStoredLawyerProfile);
@@ -56,6 +81,24 @@ const LawyerProfile = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [menuOpen, setMenuOpen] = useState(false);
 
+  /* ── NEW: Dynamic Schedule (Feature #3) ── */
+  const [consultations, setConsultations] = useState([]);
+
+  /* ── NEW: Shared Documents (Feature #5) ── */
+  const [sharedDocs, setSharedDocs] = useState([]);
+  const [docPreview, setDocPreview] = useState(null);
+
+  /* ── NEW: Notifications (Feature #6) ── */
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [readNotifIds, setReadNotifIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('lawvoice-read-notifs') || '[]'); } catch { return []; }
+  });
+
+  /* ── NEW: Client Map ── */
+  const clientMapRef = useRef(null);
+  const clientMapInstance = useRef(null);
+
   // Set active request if requests are loaded
   useEffect(() => {
     if (requests.length > 0 && !activeRequest) {
@@ -71,7 +114,6 @@ const LawyerProfile = () => {
         const res = await fetch(`${API}/lawyers`);
         if (res.ok) {
           const data = await res.json();
-          // Filter out the logged-in lawyer from other lawyers list
           if (Array.isArray(data)) {
             setOtherLawyers(data.filter(l => l.name !== session.name));
           }
@@ -82,6 +124,66 @@ const LawyerProfile = () => {
     };
     loadLawyers();
   }, []);
+
+  /* ── NEW: Fetch consultations + documents from backend ── */
+  useEffect(() => {
+    const loadBackendData = async () => {
+      try {
+        const session = JSON.parse(localStorage.getItem('lawvoice-session') || '{}');
+        const lawyerId = session.id;
+        const lawyerName = session.name || lawyer.name;
+
+        // Dynamic Schedule: fetch consultations for this lawyer
+        const cons = await fetchLawyerConsultations(lawyerId, lawyerName);
+        if (Array.isArray(cons)) setConsultations(cons);
+
+        // Shared Documents: fetch documents shared with this lawyer
+        const docs = await fetchSharedDocuments(lawyerId, lawyerName);
+        if (Array.isArray(docs)) setSharedDocs(docs);
+
+        // Build notifications from new consultations + requests
+        const notifs = [];
+        if (Array.isArray(cons)) {
+          cons.filter(c => c.status === 'Pending').forEach(c => {
+            notifs.push({
+              id: `cons-${c.id}`,
+              type: 'consultation',
+              title: `புதிய ஆலோசனை கோரிக்கை`,
+              body: `${c.clientName} - ${c.consultationType} (${c.preferredDate} ${c.preferredTime})`,
+              time: c.createdAt,
+              icon: '📅'
+            });
+          });
+        }
+        if (Array.isArray(docs)) {
+          docs.filter(d => d.uploadedAt).forEach(d => {
+            notifs.push({
+              id: `doc-${d.id}`,
+              type: 'document',
+              title: `புதிய ஆவணம் பகிரப்பட்டது`,
+              body: `${d.ownerName} - ${d.fileName} (${d.docCategory})`,
+              time: d.uploadedAt,
+              icon: '📄'
+            });
+          });
+        }
+        requests.filter(r => r.status === 'புதிய கோரிக்கை').forEach(r => {
+          notifs.push({
+            id: `req-${r.id}`,
+            type: 'request',
+            title: `புதிய சட்ட கோரிக்கை`,
+            body: `${r.name} - ${r.issue} (${r.city})`,
+            time: r.time,
+            icon: '⚖️'
+          });
+        });
+        setNotifications(notifs);
+      } catch (err) {
+        console.error('Error loading backend data:', err);
+      }
+    };
+    loadBackendData();
+  }, [lawyer.name, requests]);
 
   const filteredRequests = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -228,7 +330,7 @@ const LawyerProfile = () => {
             <span>வழக்கறிஞர்</span>
           </div>
         </div>
-        <nav>
+         <nav>
           <a href="#" className={activeTab === 'profile' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('profile'); setMenuOpen(false); }}>
             <BriefcaseBusiness size={18} />
             <span>சுயவிவரத் தகவல்</span>
@@ -241,18 +343,22 @@ const LawyerProfile = () => {
             <UsersRound size={18} />
             <span>கோரிக்கைகள்</span>
           </a>
+          <a href="#" className={activeTab === 'schedule' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('schedule'); setMenuOpen(false); }}>
+            <CalendarCheck size={18} />
+            <span>ஆலோசனைகள் ({consultations.length})</span>
+          </a>
+          <a href="#" className={activeTab === 'documents' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('documents'); setMenuOpen(false); }}>
+            <FileText size={18} />
+            <span>ஆவணங்கள் ({sharedDocs.length})</span>
+          </a>
+          <a href="#" className={activeTab === 'clientmap' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('clientmap'); setMenuOpen(false); }}>
+            <MapPin size={18} />
+            <span>வாடிக்கையாளர் வரைபடம்</span>
+          </a>
           <a href="#" className={activeTab === 'other' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('other'); setMenuOpen(false); }}>
             <UsersRound size={18} />
             <span>பிற வழக்கறிஞர்கள்</span>
           </a>
-          <a href="#" className={activeTab === 'schedule' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('schedule'); setMenuOpen(false); }}>
-            <CalendarCheck size={18} />
-            <span>ஆலோசனைகள்</span>
-          </a>
-          <Link to="/user-profile/lawyer-location" onClick={() => setMenuOpen(false)}>
-            <MapPin size={18} />
-            <span>வழக்கறிஞர் வரைபடம் (Leaflet Map)</span>
-          </Link>
           
           <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
             <Link className="secondaryBtn" to="/" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>வெளியேறு</Link>
@@ -271,7 +377,92 @@ const LawyerProfile = () => {
             <p>LawVoice வழக்கறிஞர் பணிப்பகம்</p>
             <h1>வணக்கம், {lawyer.name}</h1>
           </div>
-          <div className="topbarActions">
+          <div className="topbarActions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* ── Notification Bell ── */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className="iconBtn"
+                onClick={() => setShowNotifPanel(!showNotifPanel)}
+                style={{ position: 'relative', background: showNotifPanel ? 'rgba(16,185,129,0.15)' : 'transparent', borderRadius: '10px', padding: '8px' }}
+                aria-label="அறிவிப்புகள்"
+              >
+                <Bell size={22} />
+                {notifications.filter(n => !readNotifIds.includes(n.id)).length > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '2px', right: '2px',
+                    background: '#ef4444', color: '#fff', borderRadius: '50%',
+                    width: '18px', height: '18px', fontSize: '11px', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '2px solid #fff'
+                  }}>
+                    {notifications.filter(n => !readNotifIds.includes(n.id)).length}
+                  </span>
+                )}
+              </button>
+
+              {/* ── Notification Dropdown Panel ── */}
+              {showNotifPanel && (
+                <div className="notifPanel" style={{
+                  position: 'absolute', right: 0, top: '48px', width: '380px', maxHeight: '420px',
+                  background: '#fff', borderRadius: '14px', boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
+                  zIndex: 999, overflow: 'hidden', border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ padding: '14px 18px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', color: '#1e293b' }}>🔔 அறிவிப்புகள் ({notifications.length})</h3>
+                    <button
+                      className="secondaryBtn compact"
+                      style={{ fontSize: '12px', padding: '4px 10px' }}
+                      onClick={() => {
+                        const allIds = notifications.map(n => n.id);
+                        setReadNotifIds(allIds);
+                        localStorage.setItem('lawvoice-read-notifs', JSON.stringify(allIds));
+                      }}
+                    >அனைத்தும் படிக்கப்பட்டது</button>
+                  </div>
+                  <div style={{ overflowY: 'auto', maxHeight: '360px' }}>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>
+                        <Bell size={32} /><p>புதிய அறிவிப்புகள் இல்லை</p>
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          style={{
+                            padding: '12px 18px', borderBottom: '1px solid #f8fafc',
+                            background: readNotifIds.includes(n.id) ? '#fff' : '#f0fdf4',
+                            cursor: 'pointer', transition: 'background 0.2s'
+                          }}
+                          onClick={() => {
+                            if (!readNotifIds.includes(n.id)) {
+                              const updated = [...readNotifIds, n.id];
+                              setReadNotifIds(updated);
+                              localStorage.setItem('lawvoice-read-notifs', JSON.stringify(updated));
+                            }
+                            if (n.type === 'consultation') setActiveTab('schedule');
+                            else if (n.type === 'document') setActiveTab('documents');
+                            else setActiveTab('requests');
+                            setShowNotifPanel(false);
+                          }}
+                        >
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: '22px' }}>{n.icon}</span>
+                            <div style={{ flex: 1 }}>
+                              <strong style={{ fontSize: '13px', color: '#1e293b' }}>{n.title}</strong>
+                              <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748b' }}>{n.body}</p>
+                            </div>
+                            {!readNotifIds.includes(n.id) && (
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', marginTop: '6px', flexShrink: 0 }} />
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <a className="quickCall" href={`tel:${lawyer.phone}`}><Phone size={17} /> அலுவலக அழைப்பு</a>
           </div>
         </header>
@@ -279,7 +470,7 @@ const LawyerProfile = () => {
         <div className="screen">
           <section className="lawyerStats">
             <div className="stat"><strong>{requests.length}</strong><span>மொத்த கோரிக்கைகள்</span></div>
-            <div className="stat"><strong>{requests.filter((item) => item.urgency === 'High').length}</strong><span>அதிக முன்னுரிமை</span></div>
+            <div className="stat"><strong>{consultations.length}</strong><span>ஆலோசனைகள்</span></div>
             <div className="stat"><strong>{lawyer.category}</strong><span>முக்கிய நடைமுறை</span></div>
             <div className="stat"><strong>{lawyer.city}</strong><span>சேவை நகரம்</span></div>
           </section>
@@ -563,24 +754,284 @@ const LawyerProfile = () => {
 
           {activeTab === 'schedule' && (
             <section className="screen">
-              <div className="panel">
-                <span className="pill"><CalendarCheck size={16} /> இன்று</span>
-                <h2>ஆலோசனைகள்</h2>
-                <div className="timeline">
-                  {schedule.map(([time, name, note]) => (
-                    <div key={`${time}-${name}`}>
-                      <strong>{time}</strong>
-                      <span>{name}</span>
-                      <small>{note}</small>
+              <div className="sectionHead">
+                <div>
+                  <span className="pill"><CalendarCheck size={16} /> ஆலோசனைகள்</span>
+                  <h2>நிகழ்வு அட்டவணை (Dynamic Schedule)</h2>
+                </div>
+              </div>
+              {consultations.length === 0 ? (
+                <div className="panel" style={{ textAlign: 'center', padding: '40px' }}>
+                  <CalendarCheck size={48} color="#94a3b8" />
+                  <h3 style={{ color: '#64748b', marginTop: '12px' }}>இன்னும் ஆலோசனைகள் இல்லை</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '14px' }}>மக்கள் பக்கத்திலிருந்து ஆலோசனை பதிவு செய்யும் போது இங்கே காட்டப்படும்.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                  {consultations.map(c => {
+                    const statusColors = {
+                      'Pending': { bg: '#fef3c7', color: '#92400e', label: 'நிலுவையில்' },
+                      'Confirmed': { bg: '#d1fae5', color: '#065f46', label: 'உறுதிப்படுத்தப்பட்டது' },
+                      'Completed': { bg: '#e0e7ff', color: '#3730a3', label: 'முடிந்தது' },
+                      'Cancelled': { bg: '#fee2e2', color: '#991b1b', label: 'ரத்தானது' }
+                    };
+                    const s = statusColors[c.status] || statusColors['Pending'];
+                    return (
+                      <div key={c.id} className="panel" style={{ padding: '18px', borderLeft: `4px solid ${s.color}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                          <div>
+                            <strong style={{ fontSize: '16px', color: '#1e293b' }}>{c.clientName}</strong>
+                            <p style={{ margin: '3px 0', fontSize: '13px', color: '#64748b' }}>{c.clientPhone}</p>
+                          </div>
+                          <span style={{ background: s.bg, color: s.color, padding: '3px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>{s.label}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: '#475569', marginBottom: '10px' }}>
+                          <span><Clock size={14} /> {c.preferredDate} | {c.preferredTime}</span>
+                          <span><Phone size={14} /> {c.consultationType}</span>
+                        </div>
+                        {c.issueSummary && <p style={{ fontSize: '13px', color: '#64748b', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px' }}>{c.issueSummary}</p>}
+                        {c.status === 'Pending' && (
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                            <button className="primaryBtn compact" onClick={async () => {
+                              await updateConsultationStatus(c.id, 'Confirmed');
+                              setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: 'Confirmed' } : x));
+                            }}>✓ உறுதிப்படுத்து</button>
+                            <button className="secondaryBtn compact" onClick={async () => {
+                              await updateConsultationStatus(c.id, 'Cancelled');
+                              setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: 'Cancelled' } : x));
+                            }}>✕ ரத்து</button>
+                          </div>
+                        )}
+                        {c.status === 'Confirmed' && (
+                          <button className="primaryBtn compact" style={{ marginTop: '10px', background: '#3730a3' }} onClick={async () => {
+                            await updateConsultationStatus(c.id, 'Completed');
+                            setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: 'Completed' } : x));
+                          }}>✓ முடிந்தது</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── NEW: Documents Tab (Feature #5) ── */}
+          {activeTab === 'documents' && (
+            <section className="screen">
+              <div className="sectionHead">
+                <div>
+                  <span className="pill"><FileText size={16} /> பகிரப்பட்ட ஆவணங்கள்</span>
+                  <h2>வாடிக்கையாளர் ஆவணங்கள்</h2>
+                </div>
+              </div>
+              {sharedDocs.length === 0 ? (
+                <div className="panel" style={{ textAlign: 'center', padding: '40px' }}>
+                  <FileText size={48} color="#94a3b8" />
+                  <h3 style={{ color: '#64748b', marginTop: '12px' }}>ஆவணங்கள் இல்லை</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '14px' }}>வாடிக்கையாளர்கள் ஆவணங்களை பகிரும் போது இங்கே காட்டப்படும்.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  {sharedDocs.map(doc => (
+                    <div key={doc.id} className="panel" style={{ padding: '18px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FileText size={22} color="#4f46e5" />
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: '14px', color: '#1e293b' }}>{doc.fileName}</strong>
+                            <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b' }}>{doc.ownerName}</p>
+                          </div>
+                        </div>
+                        <span className="pill" style={{ fontSize: '11px', background: '#f0fdf4', color: '#065f46' }}>{doc.docCategory}</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px' }}>
+                        வகை: {doc.fileType || 'N/A'} | பதிவேற்றம்: {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('ta-IN') : 'N/A'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {doc.fileData && (
+                          <button className="primaryBtn compact" onClick={() => setDocPreview(doc)}>
+                            <Eye size={14} /> பார்க்க
+                          </button>
+                        )}
+                        {doc.fileData && (
+                          <a
+                            href={doc.fileData}
+                            download={doc.fileName}
+                            className="secondaryBtn compact"
+                          >
+                            📥 பதிவிறக்கம்
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* Document Preview Modal */}
+              {docPreview && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div style={{ background: '#fff', borderRadius: '16px', maxWidth: '700px', width: '100%', maxHeight: '85vh', overflow: 'auto', padding: '24px', position: 'relative' }}>
+                    <button onClick={() => setDocPreview(null)} style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
+                    <h3 style={{ marginBottom: '8px' }}>{docPreview.fileName}</h3>
+                    <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>{docPreview.ownerName} | {docPreview.docCategory} | {docPreview.fileType}</p>
+                    {docPreview.fileData && docPreview.fileData.startsWith('data:image') ? (
+                      <img src={docPreview.fileData} alt={docPreview.fileName} style={{ maxWidth: '100%', borderRadius: '10px' }} />
+                    ) : (
+                      <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '10px', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: '400px', overflow: 'auto' }}>
+                        {docPreview.fileData ? docPreview.fileData.substring(0, 500) + '...' : 'ஆவண தரவு கிடைக்கவில்லை.'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── NEW: Client Map Tab ── */}
+          {activeTab === 'clientmap' && (
+            <section className="screen">
+              <div className="sectionHead">
+                <div>
+                  <span className="pill"><MapPin size={16} /> வாடிக்கையாளர் வரைபடம்</span>
+                  <h2>வாடிக்கையாளர்கள் இருப்பிடம் (Client Locations)</h2>
+                </div>
+              </div>
+
+              <div className="panel" style={{ padding: '12px' }}>
+                <ClientMapLeaflet
+                  mapRef={clientMapRef}
+                  mapInstance={clientMapInstance}
+                  lawyer={lawyer}
+                  requests={requests}
+                  consultations={consultations}
+                  tamilCityCoords={tamilCityCoords}
+                />
+              </div>
+
+              {/* Client location list */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px', marginTop: '16px' }}>
+                {[...requests.map(r => ({ name: r.name, city: r.city, type: 'கோரிக்கை', detail: r.issue })),
+                  ...consultations.map(c => ({ name: c.clientName, city: '', type: 'ஆலோசனை', detail: `${c.consultationType} - ${c.preferredDate}` }))
+                ].map((item, idx) => (
+                  <div key={idx} className="panel" style={{ padding: '14px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: item.type === 'கோரிக்கை' ? '#fef3c7' : '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {item.type === 'கோரிக்கை' ? '⚖️' : '📅'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <strong style={{ fontSize: '13px', color: '#1e293b' }}>{item.name}</strong>
+                      <p style={{ margin: '2px 0', fontSize: '12px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.detail}</p>
+                      {item.city && <span style={{ fontSize: '11px', color: '#10b981' }}><MapPin size={12} /> {item.city}</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}
 
         </div>
       </main>
+    </div>
+  );
+};
+
+/* ── Client Map Leaflet Sub-component ── */
+const ClientMapLeaflet = ({ mapRef, mapInstance, lawyer, requests, consultations, tamilCityCoords }) => {
+  useEffect(() => {
+    let isMounted = true;
+    const initMap = () => {
+      if (!mapRef.current || !window.L || !isMounted) return;
+      try {
+        if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; }
+        if (mapRef.current._leaflet_id) mapRef.current._leaflet_id = null;
+
+        const lawyerCity = tamilCityCoords[lawyer.city] || tamilCityCoords['சென்னை'];
+        const map = window.L.map(mapRef.current).setView([lawyerCity.lat, lawyerCity.lng], 8);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        mapInstance.current = map;
+
+        // Lawyer office marker (green)
+        const lawyerIcon = window.L.divIcon({
+          html: `<div style="background:#10b981;color:#fff;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">⚖️</div>`,
+          className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+        });
+        window.L.marker([lawyerCity.lat, lawyerCity.lng], { icon: lawyerIcon })
+          .addTo(map)
+          .bindPopup(`<b>${lawyer.name}</b><br/>அலுவலகம்: ${lawyer.city}<br/>${lawyer.category}`)
+          .bindTooltip(lawyer.name, { permanent: true, direction: 'top', className: 'tamilTooltip' });
+
+        // Client markers from requests
+        const latLngs = [[lawyerCity.lat, lawyerCity.lng]];
+        const clientIcon = window.L.divIcon({
+          html: `<div style="background:#3b82f6;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25)">👤</div>`,
+          className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+
+        requests.forEach(r => {
+          const coords = tamilCityCoords[r.city];
+          if (coords) {
+            // Add small random offset to avoid overlapping
+            const jLat = coords.lat + (Math.random() - 0.5) * 0.02;
+            const jLng = coords.lng + (Math.random() - 0.5) * 0.02;
+            latLngs.push([jLat, jLng]);
+            window.L.marker([jLat, jLng], { icon: clientIcon })
+              .addTo(map)
+              .bindPopup(`<b>${r.name}</b><br/>நகரம்: ${r.city}<br/>சிக்கல்: ${r.issue}<br/>நிலை: ${r.status}`)
+              .bindTooltip(r.name, { direction: 'top', className: 'tamilTooltip' });
+            // Line from lawyer to client
+            window.L.polyline([[lawyerCity.lat, lawyerCity.lng], [jLat, jLng]], {
+              color: '#3b82f6', weight: 1.5, opacity: 0.4, dashArray: '6,4'
+            }).addTo(map);
+          }
+        });
+
+        // Consultation markers (different color)
+        const consIcon = window.L.divIcon({
+          html: `<div style="background:#8b5cf6;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25)">📅</div>`,
+          className: '', iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+
+        consultations.forEach(c => {
+          // Try to find city from client name matching requests
+          const matchReq = requests.find(r => r.name === c.clientName);
+          const coords = matchReq ? tamilCityCoords[matchReq.city] : null;
+          if (coords) {
+            const jLat = coords.lat + (Math.random() - 0.5) * 0.02;
+            const jLng = coords.lng + (Math.random() - 0.5) * 0.02;
+            latLngs.push([jLat, jLng]);
+            window.L.marker([jLat, jLng], { icon: consIcon })
+              .addTo(map)
+              .bindPopup(`<b>${c.clientName}</b><br/>ஆலோசனை: ${c.consultationType}<br/>தேதி: ${c.preferredDate} ${c.preferredTime}<br/>நிலை: ${c.status}`)
+              .bindTooltip(c.clientName, { direction: 'top', className: 'tamilTooltip' });
+          }
+        });
+
+        if (latLngs.length > 1) {
+          map.fitBounds(window.L.latLngBounds(latLngs), { padding: [40, 40] });
+        }
+
+        setTimeout(() => { if (mapInstance.current) mapInstance.current.invalidateSize(); }, 300);
+      } catch (err) { console.warn('Client map init error:', err); }
+    };
+
+    if (!window.L) { const t = setTimeout(initMap, 500); return () => clearTimeout(t); }
+    else initMap();
+    return () => { isMounted = false; if (mapInstance.current) { try { mapInstance.current.remove(); } catch {} mapInstance.current = null; } };
+  }, [requests, consultations, lawyer]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '10px', fontSize: '12px', color: '#64748b' }}>
+        <span>⚖️ வழக்கறிஞர் அலுவலகம்</span>
+        <span>👤 கோரிக்கை வாடிக்கையாளர்</span>
+        <span>📅 ஆலோசனை வாடிக்கையாளர்</span>
+      </div>
+      <div ref={mapRef} style={{ height: '420px', width: '100%', borderRadius: '12px', zIndex: 1, boxShadow: 'inset 0 0 10px rgba(0,0,0,0.08)' }} />
     </div>
   );
 };

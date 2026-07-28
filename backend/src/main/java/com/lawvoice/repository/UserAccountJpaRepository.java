@@ -8,5 +8,4 @@ public interface UserAccountJpaRepository extends JpaRepository<UserAccount, Lon
     Optional<UserAccount> findByNameIgnoreCase(String name);
     boolean existsByNameIgnoreCase(String name);
     Optional<UserAccount> findByPhone(String phone);
-    boolean existsByPhone(String phone);
 }

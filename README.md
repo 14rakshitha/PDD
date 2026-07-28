@@ -29,7 +29,7 @@ Or double-click `backend\run.bat`.
 
 **Note:** You do **not** need `winget install Maven` — `.\run.ps1` downloads Maven automatically into `backend\.tools\`.
 
-### 2. Frontend (port 5173)
+### 2. Frontend (port 5190)
 
 Uses Vite proxy to `/api` → backend (avoids CORS during dev).
 
@@ -40,9 +40,9 @@ cd frontend
 
 Or: `npm.cmd install --strict-ssl=false` then `npm.cmd run dev`
 
-Open **http://localhost:5173**
+Open **http://localhost:5190**
 
-If port 5173 is busy, Vite may use **5174** — CORS is configured for all `localhost` ports.
+If port 5190 is busy, Vite may use **5191** — CORS is configured for all `localhost` ports.
 
 ### Demo accounts (pre-seeded)
 

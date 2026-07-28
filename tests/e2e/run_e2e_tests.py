@@ -7,11 +7,11 @@ import json
 print("==================================================")
 print("     LawVoice E2E Live Automation Test Suite      ")
 print("==================================================")
-print("Target Frontend URL : http://localhost:5170")
+print("Target Frontend URL : http://localhost:5190")
 print("Target Backend URL  : http://localhost:8082")
 print("--------------------------------------------------")
 
-frontend_url = "http://localhost:5170"
+frontend_url = "http://localhost:5190"
 backend_url = "http://localhost:8082"
 
 def test_endpoint(url, description):
@@ -29,7 +29,7 @@ def test_endpoint(url, description):
 
 # Execute End-to-End Suite Validations
 tests = [
-    (frontend_url, "Frontend Web App Home (http://localhost:5170)"),
+    (frontend_url, "Frontend Web App Home (http://localhost:5190)"),
     (f"{backend_url}/api/ai/status", "Backend AI Status API Endpoint"),
     (f"{backend_url}/api/lawyers", "Backend Lawyer Directory API"),
     (f"{backend_url}/api/rti/my-drafts", "Backend RTI Application Drafts API"),

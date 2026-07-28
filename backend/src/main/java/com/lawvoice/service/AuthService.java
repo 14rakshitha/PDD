@@ -96,7 +96,6 @@ public class AuthService {
     public AuthResponse login(AuthLoginRequest request) {
         String role = normalizeRole(request.role());
 
-        // Resolve account by name or phone — whichever the caller supplies
         boolean hasName = request.name() != null && !request.name().isBlank();
         boolean hasPhone = request.phone() != null && !request.phone().isBlank();
 
@@ -108,7 +107,6 @@ public class AuthService {
                 ? users.findByPhone(request.phone().trim())
                 : users.findByName(request.name().trim());
 
-        // If phone lookup found nothing, also try name as fallback (and vice versa)
         if (found.isEmpty() && hasPhone && hasName) {
             found = users.findByName(request.name().trim());
         }

@@ -99,7 +99,7 @@ qa_scenarios = {
     ],
     "QA-SYS": [
         "Verify H2 in-memory database connection pool", "Test database table schema creation on startup",
-        "Verify Spring Boot application port configuration (8082)", "Test Vite frontend dev server port configuration (5170)",
+        "Verify Spring Boot application port configuration (8082)", "Test Vite frontend dev server port configuration (5190)",
         "Verify environment variable loading (.env)", "Test Tomcat embedded web server initialization",
         "Verify Spring Data JPA repository method queries", "Test application health probe endpoint",
         "Verify static asset resource mapping", "Test clean application shutdown signal handling"

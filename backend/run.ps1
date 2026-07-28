@@ -75,6 +75,6 @@ if (Test-Path $EnvFile) {
     Write-Host "No .env file found. Create $EnvFile with SARVAM_API_KEY=<your_key>" -ForegroundColor Yellow
 }
 
-Write-Host "Starting LawVoice backend on http://localhost:8082 ..." -ForegroundColor Green
+Write-Host "Starting LawVoice backend on http://localhost:8080 ..." -ForegroundColor Green
 $env:MAVEN_OPTS = "-Dfile.encoding=UTF-8"
 & $mvn spring-boot:run @args
